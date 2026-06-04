@@ -316,17 +316,17 @@
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================================
-        // ⚠️ 重要設定區：請將您自己申請的 Firebase 金鑰貼在這裡
+        // Firebase 設定：已包含您提供的專屬金鑰
         // =========================================================================
-       const firebaseConfig = {
-  apiKey: "AIzaSyCQc3PLHoy33HUPwgyyF2oYPDLDs8utZF0",
-  authDomain: "lunch-ex-a28f7.firebaseapp.com",
-  projectId: "lunch-ex-a28f7",
-  storageBucket: "lunch-ex-a28f7.firebasestorage.app",
-  messagingSenderId: "162780473405",
-  appId: "1:162780473405:web:5258cdc26d094763cfa254",
-  measurementId: "G-KSKBP72ZGL"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyCQc3PLHoy33HUPwgyyF2oYPDLDs8utZF0",
+            authDomain: "lunch-ex-a28f7.firebaseapp.com",
+            projectId: "lunch-ex-a28f7",
+            storageBucket: "lunch-ex-a28f7.firebasestorage.app",
+            messagingSenderId: "162780473405",
+            appId: "1:162780473405:web:5258cdc26d094763cfa254",
+            measurementId: "G-KSKBP72ZGL"
+        };
         // =========================================================================
         
         let app, db, auth;
@@ -496,7 +496,8 @@
         const updateEntryInFirestore = async (id, updatedData) => {
             try { 
                 if (!auth.currentUser || !db) return false;
-                const entryDocRef = doc(db, 'data', 'entries', 'records', id); 
+                // 【核心修正點】：還原為最初正確的文件讀取路徑
+                const entryDocRef = doc(db, "entries", id); 
                 await updateDoc(entryDocRef, updatedData); 
                 return true; 
             } 
@@ -509,7 +510,8 @@
         const deleteEntryFromFirestore = async (id) => {
             try { 
                 if (!auth.currentUser || !db) return false;
-                const entryDocRef = doc(db, 'data', 'entries', 'records', id); 
+                // 【核心修正點】：還原為最初正確的文件刪除路徑
+                const entryDocRef = doc(db, "entries", id); 
                 await deleteDoc(entryDocRef); 
                 return true; 
             } 
@@ -799,13 +801,16 @@
                 signInAnonymously(auth).then(() => {
                     db = getFirestore(app);
                     
-                    // 使用標準的 Firestore 路徑結構 (脫離 Canvas 依賴)
-                    settingsDocRef = doc(db, 'data', 'settings', 'config', 'main');
-                    entriesCollectionRef = collection(db, 'data', 'entries', 'records');
+                    // 【核心修正點】：還原為最初始的讀取路徑
+                    // 將路徑從 'data/settings/config/main' 改回原本使用的 'settings/config'
+                    settingsDocRef = doc(db, "settings", "config");
+                    
+                    // 將路徑從 'data/entries/records' 改回原本使用的 'entries'
+                    entriesCollectionRef = collection(db, "entries");
                     
                     listenToEntries();
                     listenToSettings();
-                    console.log("Firebase 連線與登入成功");
+                    console.log("Firebase 連線與登入成功，讀取原始資料夾 entries");
                 }).catch(authError => {
                     console.error("Firebase Auth 錯誤:", authError);
                     showModal(
