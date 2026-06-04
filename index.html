@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>北成午餐換餐填報系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        .calendar-day {
+            min-height: 120px;
+            position: relative;
+            padding: 4px;
+            border: 1px solid #e2e8f0;
+            background-color: white;
+            transition: background-color 0.3s;
+        }
+        .calendar-day-header {
+            font-size: 0.8rem;
+            text-align: right;
+            color: #4a5568;
+        }
+        .not-current-month {
+            background-color: #f7fafc;
+            color: #a0aec0;
+        }
+        .today {
+            background-color: #ebf8ff;
+            border: 1px solid #4299e1;
+        }
+        .entry-popover {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-10px);
+            background-color: #2d3748;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            width: max-content;
+            max-width: 250px;
+            z-index: 10;
+            pointer-events: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .entry-popover::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #2d3748 transparent transparent transparent;
+        }
+        .calendar-entry:hover .entry-popover {
+            display: block;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 90%;
+            max-width: 500px;
+        }
+        .status-exchanged { color: #3182ce; font-weight: bold; }
+        
+        #exchangeForm .form-item:nth-child(odd) {
+            background-color: #f7fafc;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="app" class="max-w-7xl mx-auto">
+
+        <header class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-start md:items-center">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-sky-700">北成午餐「換餐」填報系統</h1>
+                    <p class="text-gray-500 mt-1">Pei-Cheng Elementary School</p>
+                </div>
+                <div class="flex items-center shrink-0 ml-4 space-x-2">
+                    <button id="adminLoginBtn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center">
+                        <i class="fas fa-user-shield mr-2"></i>管理者登入
+                    </button>
+                    <div id="adminControls" class="hidden items-center space-x-2">
+                        <button id="headerExportBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center">
+                            <i class="fas fa-file-export mr-2"></i>匯出資料
+                        </button>
+                        <button id="headerSettingsBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center">
+                            <i class="fas fa-cog mr-2"></i>設定
+                        </button>
+                        <button id="headerLogoutBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center">
+                            <i class="fas fa-sign-out-alt mr-2"></i>登出
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t pt-4 mt-4 flex justify-center">
+                 <div id="viewToggle" class="flex bg-gray-200 rounded-lg p-1 space-x-1">
+                    <button id="showFormBtn" class="px-6 py-2 text-sm font-medium rounded-md bg-white text-sky-700 shadow">填報表單</button>
+                    <button id="showCalendarBtn" class="px-6 py-2 text-sm font-medium rounded-md text-gray-600">查看日曆</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Form Section -->
+            <div id="formSection" class="bg-white p-6 rounded-xl shadow-lg max-w-4xl mx-auto">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">換餐填報</h2>
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 rounded-md" role="alert">
+                    <p class="font-bold">系統說明</p>
+                    <p class="text-sm">✽換餐需於「5個工作天前」填報，若已逾期，請填報後另行通知午餐秘書，以便確認是否換餐成功。</p>
+                    <p class="text-sm mt-1">✽如填報後欲修正或刪除，請直接聯繫雅音。</p>
+                    <p class="text-sm mt-1">✽上方查看日曆可以查看貴班換餐登記情形。</p>
+                </div>
+                <form id="exchangeForm" class="space-y-2">
+                    <div class="p-4 rounded-lg form-item">
+                        <label for="exchangeDate" class="block text-sm font-medium text-gray-700">1. 換餐日期</label>
+                        <input type="date" id="exchangeDate" name="exchangeDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+                    </div>
+
+                    <div class="p-4 rounded-lg form-item">
+                        <label class="block text-sm font-medium text-gray-700">2. 該日是否為乳品日？</label>
+                        <div class="mt-2 space-y-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="milkOption" value="是 (更換豆漿)" required>
+                                <span class="ml-2 text-sm">是 (乳品更換為豆漿)</span>
+                            </label>
+                            <br>
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="milkOption" value="是 (當日領取)">
+                                <span class="ml-2 text-sm">是 (乳品當日在8:00領取)</span>
+                            </label>
+                            <br>
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="milkOption" value="否 (非乳品日)">
+                                <span class="ml-2 text-sm">否 (非乳品日)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-lg form-item">
+                        <label class="block text-sm font-medium text-gray-700">3. 送餐方式</label>
+                        <div id="deliveryOptionsContainer" class="mt-2 space-y-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="deliveryMethod" value="廚房取餐" required>
+                                <span class="ml-2 text-sm">當天8點後到廚房取餐</span>
+                            </label>
+                            <br>
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="deliveryMethod" value="德育樓自取">
+                                <span class="ml-2 text-sm">當天8點後送至德育樓自取(限全學年)</span>
+                            </label>
+                            <br>
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="deliveryMethod" value="送至班級">
+                                <span class="ml-2 text-sm">當天11：40送至班級</span>
+                            </label>
+                            <br>
+                            <label class="inline-flex items-center">
+                                <input type="radio" class="form-radio text-sky-600" name="deliveryMethod" value="其他">
+                                <span class="ml-2 text-sm">其他</span>
+                            </label>
+                            <input type="text" id="deliveryMethodOther" name="deliveryMethodOther" placeholder="請輸入其他送餐方式" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 hidden">
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-lg form-item">
+                        <label for="grade" class="block text-sm font-medium text-gray-700">4. 學年或班級</label>
+                        <div class="flex space-x-2 mt-1">
+                            <select id="grade" name="grade" class="block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+                                <option value="">請選擇年級</option>
+                                <option value="一年級">一年級</option>
+                                <option value="二年級">二年級</option>
+                                <option value="三年級">三年級</option>
+                                <option value="四年級">四年級</option>
+                                <option value="五年級">五年級</option>
+                                <option value="六年級">六年級</option>
+                                <option value="特教班">特教班</option>
+                                <option value="社團或校隊">社團或校隊</option>
+                            </select>
+                            <select id="classNum" name="classNum" class="block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+                                <option value="">請選擇班級</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 rounded-lg form-item">
+                         <label for="name" class="block text-sm font-medium text-gray-700">5. 填報者姓名</label>
+                         <input type="text" id="name" name="name" placeholder="請輸入您的姓名" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+                    </div>
+
+                    <div class="p-4 rounded-lg form-item">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">6. 換餐需求</label>
+                        <img id="exchangeImage" src="https://placehold.co/600x400/E2E8F0/4A5568?text=換餐品項圖片" alt="換餐品項" class="rounded-lg mb-4 w-full object-cover">
+                        <div id="exchangeOptionContainer" class="mt-2 flex flex-wrap items-center justify-center gap-3">
+                            <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+                                <input type="radio" class="sr-only" name="exchangeOption" value="A" required>
+                                <span class="font-medium text-gray-700">A</span>
+                            </label>
+                            <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+                                <input type="radio" class="sr-only" name="exchangeOption" value="B">
+                                <span class="font-medium text-gray-700">B</span>
+                            </label>
+                            <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+                                <input type="radio" class="sr-only" name="exchangeOption" value="C-1">
+                                <span class="font-medium text-gray-700">C-1</span>
+                            </label>
+                            <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+                                <input type="radio" class="sr-only" name="exchangeOption" value="C-2">
+                                <span class="font-medium text-gray-700">C-2</span>
+                            </label>
+                             <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+                                <input type="radio" class="sr-only" name="exchangeOption" value="D">
+                                <span class="font-medium text-gray-700">D</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center mt-4">
+                        <i class="fas fa-paper-plane mr-2"></i>送出申請
+                    </button>
+                </form>
+            </div>
+
+            <!-- Calendar Section -->
+            <div id="calendarSection" class="bg-white p-6 rounded-xl shadow-lg hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <button id="prevMonth" class="p-2 rounded-full hover:bg-gray-200 transition"><i class="fas fa-chevron-left"></i></button>
+                    <h2 id="calendarTitle" class="text-xl font-bold text-gray-800"></h2>
+                    <button id="nextMonth" class="p-2 rounded-full hover:bg-gray-200 transition"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <div class="grid grid-cols-7 text-center font-bold text-gray-600 mb-2">
+                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                </div>
+                <div id="calendarGrid" class="calendar"></div>
+                 <p class="text-sm text-gray-500 mt-4">※ 如欲修正/刪除換餐項目請直接聯繫雅音。</p>
+            </div>
+        </main>
+        
+        <!-- Admin Settings Panel -->
+        <div id="adminPanel" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex justify-center items-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto relative">
+                <button id="closeAdminPanel" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">管理者設定</h2>
+                
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">更換換餐選擇圖片</h3>
+                        <div class="flex items-center space-x-3">
+                            <input type="file" id="imageUpload" accept="image/*" class="block w-full text-sm text-slate-500
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-sky-50 file:text-sky-700
+                              hover:file:bg-sky-100
+                            "/>
+                            <button id="saveImageBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">儲存圖片</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">變更管理者密碼</h3>
+                        <div class="space-y-3">
+                             <input type="password" id="newPassword" placeholder="輸入新密碼" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                             <input type="password" id="confirmPassword" placeholder="確認新密碼" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                             <button id="changePasswordBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">確認變更</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Dialog -->
+        <div id="modal" class="modal-backdrop hidden">
+            <div class="modal-content">
+                <h3 id="modalTitle" class="text-lg font-bold mb-4"></h3>
+                <p id="modalMessage" class="text-gray-600 mb-6"></p>
+                <div id="modalInputContainer" class="mb-6 hidden"></div>
+                <div id="modalButtons" class="flex justify-end space-x-2"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDK (含 Auth 與 Firestore) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // --- Firebase Configuration ---
+        // 優先讀取環境變數配置，否則使用預留的硬編碼金鑰
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+              apiKey: "AIzaSyCQc3PLHoy33HUPwgyyF2oYPDLDs8utZF0",
+              authDomain: "lunch-ex-a28f7.firebaseapp.com",
+              projectId: "lunch-ex-a28f7",
+              storageBucket: "lunch-ex-a28f7.firebasestorage.app",
+              messagingSenderId: "162780473405",
+              appId: "1:162780473405:web:5258cdc26d094763cfa254",
+              measurementId: "G-KSKBP72ZGL"
+            };
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'lunch-ex-a28f7';
+        
+        let app, db, auth;
+        
+        const exchangeForm = document.getElementById('exchangeForm');
+        const calendarGrid = document.getElementById('calendarGrid');
+        const calendarTitle = document.getElementById('calendarTitle');
+        const prevMonthBtn = document.getElementById('prevMonth');
+        const nextMonthBtn = document.getElementById('nextMonth');
+        const exchangeImage = document.getElementById('exchangeImage');
+        const adminLoginBtn = document.getElementById('adminLoginBtn');
+        const adminPanel = document.getElementById('adminPanel');
+        const closeAdminPanel = document.getElementById('closeAdminPanel');
+        const saveImageBtn = document.getElementById('saveImageBtn');
+        const imageUpload = document.getElementById('imageUpload');
+        const changePasswordBtn = document.getElementById('changePasswordBtn');
+        const showFormBtn = document.getElementById('showFormBtn');
+        const showCalendarBtn = document.getElementById('showCalendarBtn');
+        const formSection = document.getElementById('formSection');
+        const calendarSection = document.getElementById('calendarSection');
+        const gradeSelect = document.getElementById('grade');
+        const classNumSelect = document.getElementById('classNum');
+        const deliveryOptionsContainer = document.getElementById('deliveryOptionsContainer');
+        const deliveryMethodOtherInput = document.getElementById('deliveryMethodOther');
+        const adminControls = document.getElementById('adminControls');
+        const headerExportBtn = document.getElementById('headerExportBtn');
+        const headerSettingsBtn = document.getElementById('headerSettingsBtn');
+        const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+
+        let currentYear, currentMonth;
+        let exchangeData = [];
+        let adminLoggedIn = false;
+        let settingsDocRef, entriesCollectionRef;
+
+        const showModal = (title, message, inputs = [], buttons = [{ text: '關閉', class: 'bg-gray-500', action: closeModal }]) => {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').innerHTML = message.replace(/\n/g, '<br>');
+            
+            const inputContainer = document.getElementById('modalInputContainer');
+            inputContainer.innerHTML = '';
+            if (inputs.length > 0) {
+                inputs.forEach(input => {
+                    const inputEl = document.createElement('input');
+                    inputEl.type = input.type;
+                    inputEl.id = input.id;
+                    if (input.value) inputEl.value = input.value;
+                    inputEl.placeholder = input.placeholder;
+                    inputEl.className = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 p-2 border mb-2";
+                    inputContainer.appendChild(inputEl);
+                });
+                inputContainer.classList.remove('hidden');
+            } else {
+                inputContainer.classList.add('hidden');
+            }
+
+            const buttonsContainer = document.getElementById('modalButtons');
+            buttonsContainer.innerHTML = '';
+            buttons.forEach(btn => {
+                const buttonEl = document.createElement('button');
+                buttonEl.textContent = btn.text;
+                buttonEl.className = `text-white font-bold py-2 px-4 rounded-lg transition duration-300 ${btn.class}`;
+                buttonEl.onclick = btn.action;
+                buttonsContainer.appendChild(buttonEl);
+            });
+
+            document.getElementById('modal').classList.remove('hidden');
+        };
+
+        const closeModal = () => {
+            document.getElementById('modal').classList.add('hidden');
+        };
+
+        const toggleView = (view) => {
+            if (view === 'form') {
+                formSection.classList.remove('hidden');
+                calendarSection.classList.add('hidden');
+                showFormBtn.classList.add('bg-white', 'text-sky-700', 'shadow');
+                showFormBtn.classList.remove('text-gray-600');
+                showCalendarBtn.classList.remove('bg-white', 'text-sky-700', 'shadow');
+                showCalendarBtn.classList.add('text-gray-600');
+            } else {
+                formSection.classList.add('hidden');
+                calendarSection.classList.remove('hidden');
+                showCalendarBtn.classList.add('bg-white', 'text-sky-700', 'shadow');
+                showCalendarBtn.classList.remove('text-gray-600');
+                showFormBtn.classList.remove('bg-white', 'text-sky-700', 'shadow');
+                showFormBtn.classList.add('text-gray-600');
+            }
+        };
+
+        const getMinExchangeDateString = () => {
+            const today = new Date();
+            let currentDate = new Date(today);
+            let businessDays = 0;
+            while (businessDays < 5) {
+                currentDate.setDate(currentDate.getDate() + 1);
+                const dayOfWeek = currentDate.getDay();
+                if (dayOfWeek !== 0 && dayOfWeek !== 6) businessDays++;
+            }
+            const year = currentDate.getFullYear();
+            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+            const day = String(currentDate.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        const classOptions = {
+            "default": ["全學年", "1班", "2班", "3班", "4班", "5班", "6班", "7班", "8班", "9班", "10班", "11班"],
+            "特教班": ["資優班", "資源班"],
+            "社團或校隊": ["音樂班", "國樂團", "管樂團", "籃球隊", "足球隊", "游泳隊", "幼童軍"]
+        };
+
+        const updateClassOptions = () => {
+            const selectedGrade = gradeSelect.value;
+            let options = [];
+            if (selectedGrade === "特教班") options = classOptions["特教班"];
+            else if (selectedGrade === "社團或校隊") options = classOptions["社團或校隊"];
+            else if (selectedGrade.includes("年級")) options = classOptions["default"];
+
+            classNumSelect.innerHTML = '<option value="">請選擇班級</option>';
+            options.forEach(option => {
+                classNumSelect.insertAdjacentHTML('beforeend', `<option value="${option}">${option}</option>`);
+            });
+        };
+        
+        const listenToEntries = () => {
+            if (!db || !auth.currentUser || !entriesCollectionRef) return;
+            onSnapshot(entriesCollectionRef, (snapshot) => {
+                exchangeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderCalendar(currentYear, currentMonth);
+            }, (error) => {
+                console.error("Error listening to entries:", error);
+                showModal("讀取失敗", "無法從資料庫讀取紀錄，可能您的 Firebase 安全規則設定有誤，請確認安全規則。");
+            });
+        };
+
+        const listenToSettings = () => {
+            if (!db || !auth.currentUser || !settingsDocRef) return;
+            onSnapshot(settingsDocRef, (doc) => {
+                if (doc.exists()) {
+                    const settings = doc.data();
+                    if (settings.imageUrl) exchangeImage.src = settings.imageUrl;
+                } else {
+                    setDoc(settingsDocRef, { 
+                        password: btoa('admin'), 
+                        imageUrl: 'https://placehold.co/600x400/E2E8F0/4A5568?text=換餐品項圖片'
+                    }).catch(err => {
+                        console.error("Set settings doc failed:", err);
+                    });
+                }
+            }, (error) => {
+                console.error("Error listening to settings:", error);
+            });
+        };
+        
+        const addEntryToFirestore = async (entry) => {
+            try { 
+                if (!auth.currentUser || !entriesCollectionRef) return false;
+                await addDoc(entriesCollectionRef, entry); 
+                return true; 
+            } 
+            catch (error) { 
+                console.error("Add failed:", error);
+                return false; 
+            }
+        };
+
+        const updateEntryInFirestore = async (id, updatedData) => {
+            try { 
+                if (!auth.currentUser || !db) return false;
+                const entryDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'entries', id); 
+                await updateDoc(entryDocRef, updatedData); 
+                return true; 
+            } 
+            catch (error) { 
+                console.error("Update failed:", error);
+                return false; 
+            }
+        };
+
+        const deleteEntryFromFirestore = async (id) => {
+            try { 
+                if (!auth.currentUser || !db) return false;
+                const entryDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'entries', id); 
+                await deleteDoc(entryDocRef); 
+                return true; 
+            } 
+            catch (error) { 
+                console.error("Delete failed:", error);
+                return false; 
+            }
+        };
+        
+        const updateSettingsInFirestore = async (settings) => {
+            try { 
+                if (!auth.currentUser || !settingsDocRef) return false;
+                await setDoc(settingsDocRef, settings, { merge: true }); 
+                return true; 
+            } 
+            catch (error) { 
+                console.error("Update settings failed:", error);
+                return false; 
+            }
+        };
+
+        const sortEntriesByClass = (entries) => {
+            const gradeOrder = ["一年級", "二年級", "三年級", "四年級", "五年級", "六年級", "特教班", "社團或校隊"];
+            
+            return entries.sort((a, b) => {
+                const gradeIndexA = gradeOrder.indexOf(a.grade);
+                const gradeIndexB = gradeOrder.indexOf(b.grade);
+                if (gradeIndexA !== gradeIndexB) return gradeIndexA - gradeIndexB;
+
+                if (a.classNum === "全學年") return -1;
+                if (b.classNum === "全學年") return 1;
+
+                const numA = parseInt(a.classNum) || 999;
+                const numB = parseInt(b.classNum) || 999;
+                
+                if (numA !== numB) return numA - numB;
+
+                return a.classNum.localeCompare(b.classNum, 'zh-Hant');
+            });
+        };
+
+        const renderCalendar = (year, month) => {
+            calendarGrid.innerHTML = '';
+            calendarTitle.textContent = `${year}年 ${month + 1}月`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+
+            for (let i = 0; i < firstDay; i++) {
+                calendarGrid.insertAdjacentHTML('beforeend', '<div class="calendar-day not-current-month"></div>');
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                let dayEntries = exchangeData.filter(e => e.date === dateStr);
+                dayEntries = sortEntriesByClass(dayEntries);
+
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'calendar-day';
+                if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) dayDiv.classList.add('today');
+                dayDiv.innerHTML = `<div class="calendar-day-header">${day}</div>`;
+                const entriesContainer = document.createElement('div');
+                entriesContainer.className = 'space-y-1 text-xs';
+                
+                dayEntries.forEach(entry => entriesContainer.appendChild(createEntryElement(entry, dayEntries.length > 1)));
+                
+                dayDiv.appendChild(entriesContainer);
+                calendarGrid.appendChild(dayDiv);
+            }
+        };
+        
+        const createEntryElement = (entry, isCompact) => {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'calendar-entry p-1 rounded-md cursor-pointer relative';
+            entryDiv.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
+            entryDiv.style.borderLeft = '3px solid #22c55e';
+            const statusClass = entry.status === '已換餐' ? 'status-exchanged' : '';
+            const popoverContent = `
+                <div class="font-bold">${entry.grade} ${entry.classNum}</div>
+                <div>填報人: ${entry.name}</div>
+                <div>選項: ${entry.option}</div>
+                <div>乳品: ${entry.milkOption}</div>
+                <div>送餐: ${entry.deliveryMethod}</div>
+                <div>狀態: <span class="${statusClass}">${entry.status}</span></div>
+            `;
+            entryDiv.innerHTML = isCompact ? 
+                `<div class="font-semibold truncate">${entry.grade} ${entry.classNum} (<span class="${statusClass}">${entry.status}</span>)</div>` :
+                `<div class="font-semibold truncate">${entry.grade} ${entry.classNum}</div>
+                 <div class="text-gray-600">選項: ${entry.option}</div>
+                 <div class="text-gray-600 flex items-center text-xs">
+                    ${entry.milkOption.includes('豆漿') ? '<i class="fas fa-leaf mr-1 text-green-600"></i>' : '<i class="fas fa-cow mr-1 text-blue-500"></i>'} ${entry.milkOption}
+                 </div>
+                 <div class="text-gray-600"><span class="${statusClass}">${entry.status}</span></div>`;
+            entryDiv.insertAdjacentHTML('beforeend', `<div class="entry-popover">${popoverContent}</div>`);
+            if (adminLoggedIn) entryDiv.onclick = (e) => { e.stopPropagation(); openAdminEditModal(entry); };
+            return entryDiv;
+        };
+
+        const openAdminEditModal = (entry) => {
+             const message = `
+                <p><strong>填報人:</strong> ${entry.name} (${entry.grade} ${entry.classNum})</p>
+                <div class="mt-4">
+                    <label for="editDate" class="block text-sm font-medium text-gray-700">修改換餐日期</label>
+                    <input type="date" id="editDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" value="${entry.date}">
+                </div>
+                <div class="mt-4">
+                    <label for="editStatus" class="block text-sm font-medium text-gray-700">更新狀態</label>
+                    <select id="editStatus" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                        <option value="已填報" ${entry.status === '已填報' ? 'selected' : ''}>已填報</option>
+                        <option value="Transition已登記" style="display:none;">已登記</option>
+                        <option value="已換餐" ${entry.status === '已換餐' ? 'selected' : ''}>已換餐</option>
+                    </select>
+                </div>
+                <div class="mt-4">
+                    <label for="editOption" class="block text-sm font-medium text-gray-700">修正項目</label>
+                    <select id="editOption" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                        <option value="A" ${entry.option === 'A' ? 'selected' : ''}>A</option>
+                        <option value="B" ${entry.option === 'B' ? 'selected' : ''}>B</option>
+                        <option value="C-1" ${entry.option === 'C-1' ? 'selected' : ''}>C-1</option>
+                        <option value="C-2" ${entry.option === 'C-2' ? 'selected' : ''}>C-2</option>
+                        <option value="D" ${entry.option === 'D' ? 'selected' : ''}>D</option>
+                    </select>
+                </div>
+            `;
+            const buttons = [
+                { text: '刪除', class: 'bg-red-600 hover:bg-red-700', action: () => confirmDelete(entry.id) },
+                { text: '儲存', class: 'bg-sky-600 hover:bg-sky-700', action: () => saveAdminChanges(entry.id) },
+                { text: '取消', class: 'bg-gray-500 hover:bg-gray-600', action: closeModal }
+            ];
+            showModal('管理換餐紀錄', message, [], buttons);
+        };
+        
+        const confirmDelete = (id) => {
+            closeModal();
+            setTimeout(() => {
+                showModal('確認刪除', '您確定要刪除這筆紀錄嗎？此操作無法復原。', [], [
+                    { text: '確定刪除', class: 'bg-red-600 hover:bg-red-700', action: async () => {
+                         if (await deleteEntryFromFirestore(id)) {
+                             showModal('成功', '紀錄已成功刪除。');
+                         } else {
+                             showModal('失敗', '刪除失敗，請檢查安全規則。');
+                         }
+                    }},
+                    { text: '取消', class: 'bg-gray-500 hover:bg-gray-600', action: closeModal }
+                ]);
+            }, 100);
+        };
+        
+        const saveAdminChanges = async (id) => {
+            const newDate = document.getElementById('editDate').value;
+            const newStatus = document.getElementById('editStatus').value;
+            const newOption = document.getElementById('editOption').value;
+            if (await updateEntryInFirestore(id, { date: newDate, status: newStatus, option: newOption })) {
+                showModal('成功', '紀錄已更新。');
+            } else {
+                showModal('失敗', '更新失敗，請確認安全規則權限。');
+            }
+        };
+
+        const handleFormSubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(exchangeForm);
+            let deliveryMethod = formData.get('deliveryMethod');
+            if (deliveryMethod === '其他') {
+                const otherText = formData.get('deliveryMethodOther').trim();
+                deliveryMethod = otherText ? `其他: ${otherText}` : '其他 (未註明)';
+            }
+            const newEntry = {
+                date: formData.get('exchangeDate'),
+                milkOption: formData.get('milkOption'),
+                deliveryMethod: deliveryMethod,
+                grade: formData.get('grade'),
+                classNum: formData.get('classNum'),
+                name: formData.get('name'),
+                option: formData.get('exchangeOption'),
+                status: '已填報',
+                timestamp: new Date().toISOString()
+            };
+            if (await addEntryToFirestore(newEntry)) {
+                 showModal('填報成功', `您的換餐申請已成功送出。<br>✽提醒您，若已逾期，請務必另行通知午餐秘書。`, [], [{ text: '完成', class: 'bg-sky-600', action: closeModal }]);
+                 exchangeForm.reset();
+                 document.getElementById('exchangeDate').value = getMinExchangeDateString();
+                 updateClassOptions();
+            } else {
+                 showModal('填報失敗', '連線異常，無法送出申請。請檢查網路或確認 Firebase 安全規則。');
+            }
+        };
+
+        const handleAdminLogin = async () => {
+            const action = async () => {
+                const passwordInput = document.getElementById('adminPasswordInput').value;
+                const settingsDoc = await getDoc(settingsDocRef);
+                const storedPassword = settingsDoc.exists() ? settingsDoc.data().password : btoa('admin');
+                if (btoa(passwordInput) === storedPassword) {
+                    adminLoggedIn = true;
+                    adminLoginBtn.classList.add('hidden');
+                    adminControls.classList.remove('hidden');
+                    adminControls.classList.add('flex');
+                    closeModal();
+                    renderCalendar(currentYear, currentMonth);
+                } else {
+                    closeModal();
+                    setTimeout(() => showModal('登入失敗', '密碼錯誤。'), 100);
+                }
+            };
+            showModal('管理者登入', '請輸入密碼：', [{ type: 'password', id: 'adminPasswordInput', placeholder: '密碼' }], [{ text: '登入', class: 'bg-sky-600', action: action }, { text: '取消', class: 'bg-gray-500', action: closeModal }]);
+        };
+
+        const handleLogout = () => {
+            adminLoggedIn = false;
+            adminLoginBtn.classList.remove('hidden');
+            adminControls.classList.add('hidden');
+            adminControls.classList.remove('flex');
+            renderCalendar(currentYear, currentMonth);
+            showModal('登出成功', '您已退出管理者模式。');
+        };
+
+        const handleExportData = () => {
+            if (exchangeData.length === 0) return showModal('提示', '目前沒有資料可匯出。');
+            const headers = "日期,年級,班級,填報人,乳品選項,送餐方式,換餐選項,狀態,填報時間\n";
+            const csv = exchangeData.map(e => [e.date, e.grade, e.classNum, e.name, e.milkOption, (e.deliveryMethod||'').replace(/,/g,' '), e.option, e.status, e.timestamp].join(',')).join('\n');
+            const blob = new Blob([headers + csv], { type: 'text/plain;charset=utf-8,' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `北成換餐紀錄_${new Date().toISOString().slice(0,10)}.txt`;
+            link.click();
+        };
+        
+        const init = () => {
+            const today = new Date();
+            currentYear = today.getFullYear();
+            currentMonth = today.getMonth();
+            const dateInput = document.getElementById('exchangeDate');
+            dateInput.min = dateInput.value = getMinExchangeDateString();
+            gradeSelect.addEventListener('change', updateClassOptions);
+            deliveryOptionsContainer.addEventListener('change', (e) => {
+                const isOther = e.target.name === 'deliveryMethod' && e.target.value === '其他';
+                deliveryMethodOtherInput.classList.toggle('hidden', !isOther);
+                deliveryMethodOtherInput.required = isOther;
+            });
+            updateClassOptions();
+            exchangeForm.addEventListener('submit', handleFormSubmit);
+            prevMonthBtn.addEventListener('click', () => { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(currentYear, currentMonth); });
+            nextMonthBtn.addEventListener('click', () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar(currentYear, currentMonth); });
+            adminLoginBtn.addEventListener('click', handleAdminLogin);
+            headerExportBtn.addEventListener('click', handleExportData);
+            headerSettingsBtn.addEventListener('click', () => adminPanel.classList.remove('hidden'));
+            headerLogoutBtn.addEventListener('click', handleLogout);
+            closeAdminPanel.addEventListener('click', () => adminPanel.classList.add('hidden'));
+            saveImageBtn.addEventListener('click', () => {
+                const file = imageUpload.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => { 
+                    if (await updateSettingsInFirestore({ imageUrl: e.target.result })) {
+                        showModal('成功', '圖片已更新。'); 
+                    } else {
+                        showModal('失敗', '更新圖片失敗，請確認安全規則。');
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            changePasswordBtn.addEventListener('click', async () => {
+                const n1 = document.getElementById('newPassword').value, n2 = document.getElementById('confirmPassword').value;
+                if (n1 && n1 === n2) { 
+                    if (await updateSettingsInFirestore({ password: btoa(n1) })) {
+                        showModal('成功', '密碼已變更。'); 
+                    } else {
+                        showModal('失敗', '密碼變更失敗，請確認安全規則。');
+                    }
+                }
+                else showModal('錯誤', '密碼不一致。');
+            });
+            showFormBtn.addEventListener('click', () => toggleView('form'));
+            showCalendarBtn.addEventListener('click', () => toggleView('calendar'));
+            
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                
+                // 優先執行內嵌安全憑證認證，若無憑證才調用匿名登入 fallback
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+
+                initAuth().then(() => {
+                    db = getFirestore(app);
+                    // 根據安全路徑規則建構儲存路徑
+                    settingsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
+                    entriesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'entries');
+                    listenToEntries();
+                    listenToSettings();
+                    console.log("Firebase 安全認證登入成功");
+                }).catch(authError => {
+                    console.error("Firebase Auth 錯誤:", authError);
+                    if (authError.code === 'auth/admin-restricted-operation') {
+                        showModal(
+                            "需要啟用匿名登入", 
+                            "您的 Firebase 專案尚未在控制台啟用「匿名登入 (Anonymous)」功能。<br><br>" +
+                            "<strong>啟用指南：</strong><br>" +
+                            "1. 開啟 <a href='https://console.firebase.google.com/' target='_blank' class='text-sky-600 underline'>Firebase 主控台</a> 進入您的專案。<br>" +
+                            "2. 點擊左側選單的 <strong>Authentication</strong>。<br>" +
+                            "3. 點選 <strong>Sign-in method</strong> 分頁。<br>" +
+                            "4. 啟用 <strong>Anonymous (匿名)</strong> 並點選儲存。<br>" +
+                            "5. 完成後重新整理網頁即可正常運作。"
+                        );
+                    } else {
+                        showModal("安全認證失敗", `無法與雲端建立安全認證：${authError.message}`);
+                    }
+                });
+            } catch (e) {
+                console.error("Firebase 初始化失敗:", e);
+                showModal("錯誤", "Firebase 設定失敗，請確認金鑰設定。");
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>
