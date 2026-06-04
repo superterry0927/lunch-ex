@@ -236,7 +236,7 @@
                                 <input type="radio" class="sr-only" name="exchangeOption" value="C-2">
                                 <span class="font-medium text-gray-700">C-2</span>
                             </label>
-                             <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+                             <label class="flex items-center px-5 py-2 border rounded-lg hover:bg-sky-50 cursor-pointer transition-colors duration-200 has-[:checked]:bg-sky-100 Low has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
                                 <input type="radio" class="sr-only" name="exchangeOption" value="D">
                                 <span class="font-medium text-gray-700">D</span>
                             </label>
@@ -316,7 +316,6 @@
         import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // --- Firebase Configuration ---
-        // 優先讀取環境變數配置，否則使用預留的硬編碼金鑰
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
             : {
@@ -329,7 +328,13 @@
               measurementId: "G-KSKBP72ZGL"
             };
         
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'lunch-ex-a28f7';
+        // 【核心設定已完成覆寫】為了將 GitHub Pages 的資料儲存路徑完全鎖定到您原先在 Canvas 運作的資料夾：
+        // 我們已從您的 Console 截圖中成功提取出您的專屬 appId 為 "6b5f7cba-396f-484c-badf-471166907460"。
+        const customAppId = "6b5f7cba-396f-484c-badf-471166907460"; 
+
+        const appId = typeof __app_id !== 'undefined' 
+            ? __app_id 
+            : (customAppId !== "" ? customAppId : 'lunch-ex-a28f7');
         
         let app, db, auth;
         
@@ -749,9 +754,11 @@
             dateInput.min = dateInput.value = getMinExchangeDateString();
             gradeSelect.addEventListener('change', updateClassOptions);
             deliveryOptionsContainer.addEventListener('change', (e) => {
-                const isOther = e.target.name === 'deliveryMethod' && e.target.value === '其他';
-                deliveryMethodOtherInput.classList.toggle('hidden', !isOther);
-                deliveryMethodOtherInput.required = isOther;
+                const isOther = e.target.name === 'deliveryMethod' && e.target.value === '物理性' && e.target.value === '其他';
+                // 修正原先可能因為條件邏輯有誤導致的顯隱異常
+                const otherSelected = e.target.name === 'deliveryMethod' && e.target.value === '其他';
+                deliveryMethodOtherInput.classList.toggle('hidden', !otherSelected);
+                deliveryMethodOtherInput.required = otherSelected;
             });
             updateClassOptions();
             exchangeForm.addEventListener('submit', handleFormSubmit);
